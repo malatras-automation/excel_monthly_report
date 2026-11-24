@@ -7,6 +7,9 @@ sums current (A) values per file and overall, and exports a summary report to su
 from pathlib import Path
 from openpyxl import load_workbook, Workbook
 
+from openpyxl.chart import BarChart, Reference
+from openpyxl.chart.label import DataLabelList
+
 # --- Configuration & Initialization ---
 folder = Path("data")
 files = sorted(folder.glob("*.xlsx"))
@@ -43,6 +46,13 @@ for file in files:
     for name, current in ws.iter_rows(min_row = 2, values_only = True): 
         if current is None:
             continue
+        
+        if isinstance(current, str):
+            cleaned = current.strip().replace(",", ".")
+            if cleaned == "":
+                continue
+            current = float(cleaned)
+        
         month_total += current
         grand_total += current
         
@@ -62,7 +72,44 @@ else:
 
 print("Files read:", files_read)
 
-# --- Export to Excel ---
+# --- Chart ---
+chart = BarChart()
+
+chart.y_axis.scaling.min = 0
+chart.varyColors = False
+chart.legend = None
+
+
+# Which cells (row 1 is the header, so the last month is files_read + 1)
+last_row = files_read + 1    # row of the last month (row 1 is the header)
+data = Reference(report_ws_out, min_col=2, min_row=1, max_row=last_row)
+cats = Reference(report_ws_out, min_col=1, min_row=2, max_row=last_row)
+chart.add_data(data, titles_from_data=True)
+chart.set_categories(cats)
+
+chart.title = "Total current per month"
+chart.x_axis.title = None
+chart.y_axis.title = "Current (A)"
+
+chart.x_axis.delete = False
+chart.y_axis.delete = False
+
+chart.title.overlay = False
+chart.y_axis.title.overlay = False
+
+chart.width = 18
+chart.height = 9
+
+chart.dataLabels = DataLabelList()
+chart.dataLabels.showVal = True
+chart.dataLabels.showSerName = False     
+chart.dataLabels.showCatName = False     
+chart.dataLabels.showLegendKey = False
+
+report_ws_out.add_chart(chart, "D2")
+
+
+#--- Export to Excel ---
 report_ws_out.append([])
 report_ws_out.append(["GRAND TOTAL current(A):", round(grand_total, 1)])
 report_ws_out.append(["FILES READ:", files_read])
